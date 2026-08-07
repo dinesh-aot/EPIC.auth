@@ -156,8 +156,8 @@ class UserGroups(Resource):
         return "", HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@cors_preflight("OPTIONS, DELETE")
-@API.route("/<user_id>/groups/<string:group_name>", methods=["OPTIONS", "DELETE"])
+@cors_preflight("OPTIONS, PUT, DELETE")
+@API.route("/<user_id>/groups/<string:group_name>", methods=["OPTIONS", "PUT", "DELETE"])
 @API.doc(params={"user_id": "The user identifier", "group_name": "Name of the group"})
 @API.doc(
     params={
@@ -170,6 +170,26 @@ class UserGroups(Resource):
 )
 class UserGroupName(Resource):
     """Resource to manage UserGroup by name."""
+
+    @staticmethod
+    @auth.require
+    @ApiHelper.swagger_decorators(
+        API, endpoint_description="Assign user to a specific group by name"
+    )
+    @API.response(204, "No Content")
+    @API.response(404, "Not Found")
+    def put(user_id, group_name):
+        """Assign user to a group by name, with optional sub_group_name."""
+        sub_group_name = request.args.get("sub_group_name", None)
+        try:
+            response = UserService.assign_user_to_named_group(
+                user_id, group_name, sub_group_name
+            )
+        except ValueError as e:
+            raise ResourceNotFoundError(str(e))
+        if response.status_code == 204:
+            return "", HTTPStatus.NO_CONTENT
+        raise BusinessError("Group assignment failed", 500)
 
     @staticmethod
     @auth.require
@@ -207,3 +227,31 @@ class GroupMembers(Resource):
         response_schema = UserResponseSchema(many=True)
         members = UserService.get_group_members(group_data)
         return response_schema.dump(members), HTTPStatus.OK
+
+
+@cors_preflight("GET, OPTIONS")
+@API.route("/email/<string:email>", methods=["GET", "OPTIONS"])
+@API.doc(params={"email": "The email address of the user"})
+class UserByEmail(Resource):
+    """Resource for fetching a user by email."""
+
+    @staticmethod
+    @auth.require
+    @ApiHelper.swagger_decorators(
+        API, endpoint_description="Fetch a user by email address"
+    )
+    @API.response(code=200, model=user_list_model, description="Success")
+    @API.response(404, "Not Found")
+    def get(email):
+        """Fetch a user by email address."""
+        try:
+            user = UserService.get_user_by_email(email)
+        except ValueError:
+            raise ResourceNotFoundError(
+                f"User with email '{email}' not found"
+            )
+        if not user:
+            raise ResourceNotFoundError(
+                f"User with email '{email}' not found"
+            )
+        return UserSchema().dump(user), HTTPStatus.OK

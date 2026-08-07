@@ -236,3 +236,14 @@ class KeycloakService:
             if group["name"] == group_name:
                 return group
         raise ValueError(f"Group with name '{group_name}' not found.")
+
+    @staticmethod
+    def get_user_by_email(email: str):
+        """Get a Keycloak user by email address."""
+        response = KeycloakService._request_keycloak(f"users?email={email}")
+        users = response.json()
+
+        if not users:
+            raise ValueError(f"User with email '{email}' not found.")
+
+        return users[0]

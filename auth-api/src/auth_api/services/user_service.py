@@ -260,6 +260,61 @@ class UserService:
         return all_groups
 
     @classmethod
+    def get_user_by_email(cls, email: str):
+        """Get user by email address, enriched with groups."""
+        app_name = g.app_name
+        user = KeycloakService.get_user_by_email(email)
+        user_id = user.get("id")
+        username = user.get("username")
+        enriched_user = cls.enrich_user_with_groups(
+            app_name, False, user, user_id, username
+        )
+        return enriched_user
+
+    @classmethod
+    def assign_user_to_named_group(cls, username, group_name, sub_group_name=None):
+        """Assign a user to a group by name, optionally targeting a sub-group.
+
+        :param username: The Keycloak username of the user.
+        :param group_name: The name of the parent group.
+        :param sub_group_name: Optional sub-group name within the parent.
+        :return: The response from the Keycloak group assignment.
+        :raises ValueError: If group or sub-group is not found.
+        """
+        all_groups = cls.get_groups()
+
+        if sub_group_name:
+            parent_group = next(
+                (grp for grp in all_groups if grp["name"] == group_name),
+                None,
+            )
+            if not parent_group:
+                raise ValueError(
+                    f"Parent group '{group_name}' not found."
+                )
+            sub_groups = KeycloakService.get_sub_groups(parent_group["id"])
+            target_group = next(
+                (sg for sg in sub_groups if sg["name"] == sub_group_name),
+                None,
+            )
+            if not target_group:
+                raise ValueError(
+                    f"Sub-group '{sub_group_name}' not found "
+                    f"under '{group_name}'."
+                )
+        else:
+            target_group = next(
+                (grp for grp in all_groups if grp["name"] == group_name),
+                None,
+            )
+            if not target_group:
+                raise ValueError(
+                    f"Group '{group_name}' not found."
+                )
+
+        return KeycloakService.update_user_group(username, target_group["id"])
+
+    @classmethod
     def get_groups_by_username(cls, username):
         """Get groups for a specific user by their ID."""
         groups = KeycloakService.get_user_groups_by_username(username)
