@@ -16,7 +16,7 @@ import time
 from random import random
 
 import pytest
-from api import create_app, setup_jwt_manager
+from auth_api import create_app, setup_jwt_manager
 from flask_migrate import Migrate, upgrade
 from sqlalchemy import event, text
 
